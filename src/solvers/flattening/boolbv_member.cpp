@@ -47,7 +47,7 @@ bvt boolbvt::convert_member(const member_exprt &expr)
 {
   const bvt &compound_bv = convert_bv(expr.compound());
 
-  if(expr.compound().type().id() == ID_struct_tag)
+  if(expr.compound().type().id() == ID_struct_tag || expr.compound().type().id() == ID_struct)
   {
     const struct_typet &struct_op_type =
       ns.follow_tag(to_struct_tag_type(expr.compound().type()));
