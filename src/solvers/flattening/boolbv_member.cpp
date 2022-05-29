@@ -50,7 +50,9 @@ bvt boolbvt::convert_member(const member_exprt &expr)
   if(expr.compound().type().id() == ID_struct_tag || expr.compound().type().id() == ID_struct)
   {
     const struct_typet &struct_op_type =
-      ns.follow_tag(to_struct_tag_type(expr.compound().type()));
+      expr.compound().type().id() == ID_struct
+        ? to_struct_type(expr.compound().type())
+        : ns.follow_tag(to_struct_tag_type(expr.compound().type()));
 
     const auto &member_bits =
       bv_width.get_member(struct_op_type, expr.get_component_name());
