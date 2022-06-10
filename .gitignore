@@ -150,3 +150,6 @@ dist/
 
 # auto generated documentation
 doc/html/
+
+cmake-build-debug
+.idea
