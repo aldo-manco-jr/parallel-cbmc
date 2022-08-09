@@ -9,18 +9,20 @@ Author: Daniel Kroening, Peter Schrammel
 /// \file
 /// Bounded Model Checking Utilities
 
-#include <mpi.h>
 #include "rapidjson/document.h"
 #include "rapidjson/filereadstream.h"
 #include "rapidjson/filewritestream.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
+#include <cstdio>
+#include <mpi.h>
 
 using namespace rapidjson;
 
 #include "bmc_util.h"
 
 #include <iostream>
+#include <sstream>
 
 #include <goto-programs/graphml_witness.h>
 #include <goto-programs/json_goto_trace.h>
@@ -39,8 +41,14 @@ using namespace rapidjson;
 #include <util/make_unique.h>
 #include <util/ui_message.h>
 
+//#include "c_types_util.h"
+#include "flattening/boolbv_map.h"
 #include "goto_symex_property_decider.h"
+//#include "prop/literal_expr.h"
 #include "symex_bmc.h"
+
+//#include <util/prefix.h>
+//#include <util/suffix.h>
 
 void message_building_error_trace(messaget &log)
 {
@@ -65,7 +73,8 @@ ssa_step_matches_failing_property(const irep_idt &property_id)
 {
   return [property_id](
            symex_target_equationt::SSA_stepst::const_iterator step,
-           const decision_proceduret &decision_procedure) {
+           const decision_proceduret &decision_procedure)
+  {
     return step->is_assert() && step->get_property_id() == property_id &&
            decision_procedure.get(step->cond_handle).is_false();
   };
@@ -404,32 +413,18 @@ void run_property_decider(
     << messaget::eom;
 
   property_decider.add_constraint_from_goals(
-    [&properties](const irep_idt &property_id) {
-      return is_property_to_check(properties.at(property_id).status);
-    });
+    [&properties](const irep_idt &property_id)
+    { return is_property_to_check(properties.at(property_id).status); });
 
-  auto const sat_solver_start = std::chrono::steady_clock::now();
-
-  decision_proceduret::resultt dec_result = property_decider.solve();
-
-  auto const sat_solver_stop = std::chrono::steady_clock::now();
-  std::chrono::duration<double> sat_solver_runtime =
-    std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
-  log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
-               << messaget::eom;
-
-  property_decider.update_properties_status_from_goals(
-    properties, result.updated_properties, dec_result, set_pass);
-
-  auto solver_stop = std::chrono::steady_clock::now();
-  solver_runtime += std::chrono::duration<double>(solver_stop - solver_start);
-  log.status() << "Runtime decision procedure: " << solver_runtime.count()
-               << "s" << messaget::eom;
-
-  if(dec_result == decision_proceduret::resultt::D_SATISFIABLE)
-  {
-    result.progress = incremental_goto_checkert::resultt::progresst::FOUND_FAIL;
-  }
+  //  auto const sat_solver_start = std::chrono::steady_clock::now();
+  //
+  //  decision_proceduret::resultt dec_result = property_decider.solve();
+  //
+  //  auto const sat_solver_stop = std::chrono::steady_clock::now();
+  //  std::chrono::duration<double> sat_solver_runtime =
+  //    std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
+  //  log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
+  //               << messaget::eom;
 
   MPI_Status status;
 
@@ -448,113 +443,221 @@ void run_property_decider(
 
   MPI_Comm interCommunicator;
 
-  if (initial_rank == 0) {
+  std::cout << "rank: " << initial_rank << std::endl;
+
+  if(initial_rank == 0)
+  {
     std::cout << "Looking up name!" << std::endl;
-    MPI_Lookup_name("compute", MPI_INFO_NULL, portNameOmpiServer);
+    MPI_Lookup_name("compute", info, portNameOmpiServer);
     std::cout << "Name lookup done: " << portNameOmpiServer << std::endl;
   }
 
-  MPI_Comm_connect(portNameOmpiServer, info, 0, MPI_COMM_WORLD, &interCommunicator);
+  MPI_Comm_connect(
+    portNameOmpiServer, info, 0, MPI_COMM_WORLD, &interCommunicator);
   std::cout << "Comm connected!" << std::endl;
 
-  char tmp[3];
-  tmp[0]='a';
-  tmp[1]='b';
-  tmp[2]='c';
+  //  // Find selector variable
+  //  const irep_idt selector_variable_name{"__cseq_selector_variable"};
+  //  exprt selector_variable;
+  //  const boolbv_mapt::mappingt &symbol_map =
+  //    property_decider.get_stack_decision_procedure().get_map().get_mapping();
+  //
+  //  for(const auto &s : symbol_map)
+  //  {
+  //    if(
+  //      has_prefix(id2string(s.first), selector_variable_name.c_str()) &&
+  //      has_suffix(id2string(s.first), "#1"))
+  //    {
+  //      selector_variable = symbol_exprt(s.first, s.second.type);
+  //      std::cout << selector_variable.id_string() << std::endl;
+  //    }
+  //  }
+  //
+  //  while(true)
+  //  {
+  //    // Request next selector value from master
+  //    // ...
+  //    mp_integer selector_value = 0;
+  //
+  //    // Create assumption literal for selector_variable == selector_value
+  //    literal_exprt assumption =
+  //      property_decider.get_stack_decision_procedure().handle(equal_exprt(
+  //        selector_variable,
+  //        from_integer(selector_value, selector_variable.type())));
+  //    // Add assumption
+  //    property_decider.get_stack_decision_procedure().push(
+  //      exprt::operandst{assumption});
+  //
+  //    auto const sat_solver_start = std::chrono::steady_clock::now();
+  //
+  //    decision_proceduret::resultt dec_result = property_decider.solve();
+  //
+  //    auto const sat_solver_stop = std::chrono::steady_clock::now();
+  //    std::chrono::duration<double> sat_solver_runtime =
+  //      std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
+  //    log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
+  //                 << messaget::eom;
+  //
+  //    // We found a counterexample, return it.
+  //    if(dec_result == decision_proceduret::resultt::D_SATISFIABLE)
+  //    {
+  //      break;
+  //    }
+  //
+  //    // Remove assumption
+  //    property_decider.get_stack_decision_procedure().pop();
+  //  }
 
-  MPI_Send(tmp, 3, MPI_CHAR, 0, 0, interCommunicator);
+  int irr;
 
-  //    FILE* fp = fopen("file_tmp.json", "r+b"); // non-Windows use "r"
-  //
-  //    char writeBuffer[65536];
-  //
-  //    MPI_Recv(&writeBuffer, 1000, MPI_CHAR, 0, 0, interCommunicator, &status);
-  //
-  //    Document d;
-  //
-  //    FileWriteStream os(fp, writeBuffer, sizeof(writeBuffer));
-  //    Writer<FileWriteStream> writer(os);
-  //
-  //    d.Accept(writer);
-  //
-  //    FileReadStream is(fp, writeBuffer, sizeof(writeBuffer));
-  //    d.ParseStream(is);
-  //
-  //    fclose(fp);
-  //
-  //    std::cout << writeBuffer << std::endl;
-  //    fclose(fp);
+  MPI_Send(&irr, 1, MPI_INT, 0, 0, interCommunicator);
+  std::cout << "sent" << std::endl;
 
-  //    std::cout << writeBuffer << std::endl;
+  while(true)
+  {
+    char stringbuffer1[65536];
+    MPI_Recv(
+      &stringbuffer1,
+      1000,
+      MPI_CHAR,
+      0,
+      MPI_ANY_TAG,
+      interCommunicator,
+      &status);
 
-  // string
+    std::cout << "received" << std::endl;
+    //std::cout << stringbuffer1 << std::endl;
+    std::cout << "code: " << status.MPI_TAG << std::endl;
 
-  //    char stringbuffer1[65536];
-  //    MPI_Recv(&stringbuffer1, 1000, MPI_CHAR, 0, 0, interCommunicator, &status);
-  //
-  //    Document d;
-  //    d.Parse(stringbuffer1);
-  //
-  //    // 2. Modify it by DOM.
-  //    Value& s = d["s0"];
-  //    s.SetInt(s.GetInt() + 1);
-  //
-  //    // 3. Stringify the DOM
-  //    StringBuffer buffer;
-  //    Writer<StringBuffer> writer(buffer);
-  //    d.Accept(writer);
-  //
-  //    // Output {"project":"rapidjson","stars":11}
-  //    std::cout << buffer.GetString() << std::endl;
+    if(status.MPI_TAG == 4)
+    {
+      MPI_Finalize();
+      return;
+    }
 
-  char stringbuffer1[65536];
-  MPI_Recv(&stringbuffer1, 1000, MPI_CHAR, 0, 0, interCommunicator, &status);
+    Document d;
+    d.Parse(stringbuffer1);
+    //std::cout << "a" << std::endl;
+    //fflush(stdout);
 
-  Document d;
-  d.Parse(stringbuffer1);
+    int numberOfThread = -1;
 
-  for (Value::ConstMemberIterator itr = d["s0"].MemberBegin(); itr != d["s0"].MemberEnd(); ++itr){
-    std::cout << "Member: " << itr->name.GetString() << std::endl;
+    for(Value::ConstMemberIterator itr0 = d.MemberBegin();
+        itr0 != d.MemberEnd();
+        ++itr0)
+    {
+      for(Value::ConstMemberIterator itr =
+            d[itr0->name.GetString()].MemberBegin();
+          itr != d[itr0->name.GetString()].MemberEnd();
+          ++itr)
+      {
+        std::cout << "Member: " << itr->name.GetString() << std::endl;
 
-    Value& s = d["s0"][itr->name.GetString()];
-    std::vector<std::vector<int>> vec;
-    vec.resize(s.Size());
+        Value &s = d[itr0->name.GetString()][itr->name.GetString()];
+        std::vector<std::vector<int>> vec;
+        vec.resize(s.Size());
 
-    for (SizeType i = 0; i<s.Size(); i++){
-      const rapidjson::Value &data_vec = s[i];
-      for (SizeType j = 0; j < data_vec.Size(); j++){
-        vec[i].push_back(data_vec[j].GetInt()+1);
-        std::cout << data_vec[j].GetInt() << std::endl;
+        std::vector<std::vector<int>> vec1;
+        vec.resize(s.Size());
+
+        if(itr0 != d.MemberBegin()){
+          numberOfThread++;
+        }
+
+        for(SizeType i = 0; i < s.Size(); i++)
+        {
+          const rapidjson::Value &data_vec = s[i];
+          for(SizeType j = 0; j < data_vec.Size(); j++)
+          {
+            vec[i].push_back(data_vec[j].GetInt() + 1);
+            std::cout << data_vec[j].GetInt() << std::endl;
+
+            if(itr0 != d.MemberBegin())
+            {
+              //vec[i].push_back(data_vec[j].GetInt() + 1);
+              for(int p=0; p<data_vec[j].GetInt(); p++){
+                std::cout << "_cs_SwCtrl_" << numberOfThread << "_"
+                          << p << std::endl;
+              }
+            }
+          }
+        }
+        vec.clear();
       }
     }
-    vec.clear();
+
+    // 3. Stringify the DOM
+    StringBuffer buffer;
+    Writer<StringBuffer> writer(buffer);
+    d.Accept(writer);
+
+    // Output {"project":"rapidjson","stars":11}
+    std::cout << initial_rank << " " << buffer.GetString() << std::endl;
+
+    std::string input = "aldo";
+    std::ofstream out("output.txt");
+    out << input;
+    out.close();
+
+    auto const sat_solver_start = std::chrono::steady_clock::now();
+
+    decision_proceduret::resultt dec_result = property_decider.solve();
+
+    auto const sat_solver_stop = std::chrono::steady_clock::now();
+    std::chrono::duration<double> sat_solver_runtime =
+      std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
+    log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
+                 << messaget::eom;
+
+    // We found a counterexample, return it.
+    if(dec_result == decision_proceduret::resultt::D_SATISFIABLE)
+    {
+      MPI_Send(&irr, 1, MPI_INT, 0, 1, interCommunicator);
+      std::cout << "sent" << std::endl;
+    }
+    else if(dec_result == decision_proceduret::resultt::D_UNSATISFIABLE)
+    {
+      MPI_Send(&irr, 1, MPI_INT, 0, 2, interCommunicator);
+      std::cout << "sent" << std::endl;
+    }
+    else if(dec_result == decision_proceduret::resultt::D_ERROR)
+    {
+      MPI_Send(&irr, 1, MPI_INT, 0, 3, interCommunicator);
+      std::cout << "sent" << std::endl;
+    }
+
+    property_decider.update_properties_status_from_goals(
+      properties, result.updated_properties, dec_result, set_pass);
+
+    auto solver_stop = std::chrono::steady_clock::now();
+    solver_runtime += std::chrono::duration<double>(solver_stop - solver_start);
+    log.status() << "Runtime decision procedure: " << solver_runtime.count()
+                 << "s" << messaget::eom;
+
+    if(dec_result == decision_proceduret::resultt::D_SATISFIABLE)
+    {
+      result.progress =
+        incremental_goto_checkert::resultt::progresst::FOUND_FAIL;
+    }
   }
-
-  // 3. Stringify the DOM
-  StringBuffer buffer;
-  Writer<StringBuffer> writer(buffer);
-  d.Accept(writer);
-
-  // Output {"project":"rapidjson","stars":11}
-  std::cout << buffer.GetString() << std::endl;
-  //std::cout << vec[0][0] << std::endl;
-  /*
-
-      MPI_Comm newCommunicator;
-      MPI_Intercomm_merge(interCommunicator, 1, &newCommunicator);
-
-      int new_rank;
-      MPI_Comm_rank(newCommunicator, &new_rank);
-      int new_size;
-      MPI_Comm_size(newCommunicator, &new_size);
-
-      std::cout << "Old rank: " << initial_rank << ", new rank: " << new_rank << std::endl;
-      std::cout << "Old size: " << initial_size << ", new size: " << new_size << std::endl;
-
-      std::cout << "Disconnecting comm!" << std::endl;
-      MPI_Comm_disconnect(&interCommunicator);
-      std::cout << "Comm disconnected!" << std::endl;
-      */
 
   MPI_Finalize();
 }
+
+/*
+
+MPI_Comm newCommunicator;
+MPI_Intercomm_merge(interCommunicator, 1, &newCommunicator);
+
+int new_rank;
+MPI_Comm_rank(newCommunicator, &new_rank);
+int new_size;
+MPI_Comm_size(newCommunicator, &new_size);
+
+std::cout << "Old rank: " << initial_rank << ", new rank: " << new_rank << std::endl;
+std::cout << "Old size: " << initial_size << ", new size: " << new_size << std::endl;
+
+std::cout << "Disconnecting comm!" << std::endl;
+MPI_Comm_disconnect(&interCommunicator);
+std::cout << "Comm disconnected!" << std::endl;
+*/
