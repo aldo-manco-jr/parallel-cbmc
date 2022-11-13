@@ -2,7 +2,7 @@
 
 Module: Bounded Model Checking Utilities
 
-Author: Daniel Kroening, Peter Schrammel
+           Author: Daniel Kroening, Peter Schrammel
 
 \*******************************************************************/
 
@@ -17,7 +17,7 @@ Author: Daniel Kroening, Peter Schrammel
 #include <cstdio>
 #include <mpi.h>
 
-using namespace rapidjson;
+  using namespace rapidjson;
 
 #include "bmc_util.h"
 
@@ -52,10 +52,10 @@ using namespace rapidjson;
 //#include <util/suffix.h>
 
 struct Node {
-  int identifierThread;
-  int numberOfVisiblePoints;
-  struct Node* nextTile;
-  struct Node* nextThread;
+int identifierThread;
+int numberOfVisiblePoints;
+struct Node* nextTile;
+struct Node* nextThread;
 };
 
 void enqueueThread(Node *list, int identifierThread, int numberOfVisiblePoints);
@@ -65,734 +65,759 @@ void printPushButtons(Node* list);
 
 void message_building_error_trace(messaget &log)
 {
-  log.status() << "Building error trace" << messaget::eom;
+log.status() << "Building error trace" << messaget::eom;
 }
 
 void build_error_trace(
-  goto_tracet &goto_trace,
-  const namespacet &ns,
-  const symex_target_equationt &symex_target_equation,
-  const decision_proceduret &decision_procedure,
-  ui_message_handlert &ui_message_handler)
+goto_tracet &goto_trace,
+const namespacet &ns,
+const symex_target_equationt &symex_target_equation,
+const decision_proceduret &decision_procedure,
+ui_message_handlert &ui_message_handler)
 {
-  messaget log(ui_message_handler);
-  message_building_error_trace(log);
+messaget log(ui_message_handler);
+message_building_error_trace(log);
 
-  build_goto_trace(symex_target_equation, decision_procedure, ns, goto_trace);
+build_goto_trace(symex_target_equation, decision_procedure, ns, goto_trace);
 }
 
 ssa_step_predicatet
 ssa_step_matches_failing_property(const irep_idt &property_id)
 {
-  return [property_id](
-           symex_target_equationt::SSA_stepst::const_iterator step,
-           const decision_proceduret &decision_procedure)
-  {
-    return step->is_assert() && step->get_property_id() == property_id &&
-           decision_procedure.get(step->cond_handle).is_false();
-  };
+return [property_id](
+         symex_target_equationt::SSA_stepst::const_iterator step,
+         const decision_proceduret &decision_procedure)
+{
+  return step->is_assert() && step->get_property_id() == property_id &&
+         decision_procedure.get(step->cond_handle).is_false();
+};
 }
 
 void output_error_trace(
-  const goto_tracet &goto_trace,
-  const namespacet &ns,
-  const trace_optionst &trace_options,
-  ui_message_handlert &ui_message_handler)
+const goto_tracet &goto_trace,
+const namespacet &ns,
+const trace_optionst &trace_options,
+ui_message_handlert &ui_message_handler)
 {
-  messaget msg(ui_message_handler);
-  switch(ui_message_handler.get_ui())
-  {
-  case ui_message_handlert::uit::PLAIN:
-    msg.result() << "Counterexample:" << messaget::eom;
-    show_goto_trace(msg.result(), ns, goto_trace, trace_options);
-    msg.result() << messaget::eom;
-    break;
-
-  case ui_message_handlert::uit::XML_UI:
-  {
-    const goto_trace_stept &last_step = goto_trace.get_last_step();
-    property_infot info{
-      last_step.pc, last_step.comment, property_statust::FAIL};
-    xmlt xml_result = xml(last_step.property_id, info);
-    convert(ns, goto_trace, xml_result.new_element());
-    msg.result() << xml_result;
-  }
+messaget msg(ui_message_handler);
+switch(ui_message_handler.get_ui())
+{
+case ui_message_handlert::uit::PLAIN:
+  msg.result() << "Counterexample:" << messaget::eom;
+  show_goto_trace(msg.result(), ns, goto_trace, trace_options);
+  msg.result() << messaget::eom;
   break;
 
-  case ui_message_handlert::uit::JSON_UI:
-  {
-    json_stream_objectt &json_result =
-      ui_message_handler.get_json_stream().push_back_stream_object();
-    const goto_trace_stept &step = goto_trace.get_last_step();
-    json_result["property"] = json_stringt(step.property_id);
-    json_result["description"] = json_stringt(step.comment);
-    json_result["status"] = json_stringt("failed");
-    json_stream_arrayt &json_trace =
-      json_result.push_back_stream_array("trace");
-    convert<json_stream_arrayt>(ns, goto_trace, json_trace, trace_options);
-  }
-  break;
-  }
+case ui_message_handlert::uit::XML_UI:
+{
+  const goto_trace_stept &last_step = goto_trace.get_last_step();
+  property_infot info{
+    last_step.pc, last_step.comment, property_statust::FAIL};
+  xmlt xml_result = xml(last_step.property_id, info);
+  convert(ns, goto_trace, xml_result.new_element());
+  msg.result() << xml_result;
+}
+break;
+
+case ui_message_handlert::uit::JSON_UI:
+{
+  json_stream_objectt &json_result =
+    ui_message_handler.get_json_stream().push_back_stream_object();
+  const goto_trace_stept &step = goto_trace.get_last_step();
+  json_result["property"] = json_stringt(step.property_id);
+  json_result["description"] = json_stringt(step.comment);
+  json_result["status"] = json_stringt("failed");
+  json_stream_arrayt &json_trace =
+    json_result.push_back_stream_array("trace");
+  convert<json_stream_arrayt>(ns, goto_trace, json_trace, trace_options);
+}
+break;
+}
 }
 
 /// outputs an error witness in graphml format
 void output_graphml(
-  const goto_tracet &goto_trace,
-  const namespacet &ns,
-  const optionst &options)
+const goto_tracet &goto_trace,
+const namespacet &ns,
+const optionst &options)
 {
-  const std::string graphml = options.get_option("graphml-witness");
-  if(graphml.empty())
-    return;
+const std::string graphml = options.get_option("graphml-witness");
+if(graphml.empty())
+  return;
 
-  graphml_witnesst graphml_witness(ns);
-  graphml_witness(goto_trace);
+graphml_witnesst graphml_witness(ns);
+graphml_witness(goto_trace);
 
-  if(graphml == "-")
-    write_graphml(graphml_witness.graph(), std::cout);
-  else
-  {
-    std::ofstream out(graphml);
-    write_graphml(graphml_witness.graph(), out);
-  }
+if(graphml == "-")
+  write_graphml(graphml_witness.graph(), std::cout);
+else
+{
+  std::ofstream out(graphml);
+  write_graphml(graphml_witness.graph(), out);
+}
 }
 
 /// outputs a proof in graphml format
 void output_graphml(
-  const symex_target_equationt &symex_target_equation,
-  const namespacet &ns,
-  const optionst &options)
+const symex_target_equationt &symex_target_equation,
+const namespacet &ns,
+const optionst &options)
 {
-  const std::string graphml = options.get_option("graphml-witness");
-  if(graphml.empty())
-    return;
+const std::string graphml = options.get_option("graphml-witness");
+if(graphml.empty())
+  return;
 
-  graphml_witnesst graphml_witness(ns);
-  graphml_witness(symex_target_equation);
+graphml_witnesst graphml_witness(ns);
+graphml_witness(symex_target_equation);
 
-  if(graphml == "-")
-    write_graphml(graphml_witness.graph(), std::cout);
-  else
-  {
-    std::ofstream out(graphml);
-    write_graphml(graphml_witness.graph(), out);
-  }
+if(graphml == "-")
+  write_graphml(graphml_witness.graph(), std::cout);
+else
+{
+  std::ofstream out(graphml);
+  write_graphml(graphml_witness.graph(), out);
+}
 }
 
 void convert_symex_target_equation(
-  symex_target_equationt &equation,
-  decision_proceduret &decision_procedure,
-  message_handlert &message_handler)
+symex_target_equationt &equation,
+decision_proceduret &decision_procedure,
+message_handlert &message_handler)
 {
-  messaget msg(message_handler);
-  msg.status() << "converting SSA" << messaget::eom;
+messaget msg(message_handler);
+msg.status() << "converting SSA" << messaget::eom;
 
-  equation.convert(decision_procedure);
+equation.convert(decision_procedure);
 }
 
 std::unique_ptr<memory_model_baset>
 get_memory_model(const optionst &options, const namespacet &ns)
 {
-  const std::string mm = options.get_option("mm");
+const std::string mm = options.get_option("mm");
 
-  if(mm.empty() || mm == "sc")
-    return util_make_unique<memory_model_sct>(ns);
-  else if(mm == "tso")
-    return util_make_unique<memory_model_tsot>(ns);
-  else if(mm == "pso")
-    return util_make_unique<memory_model_psot>(ns);
-  else
-  {
-    throw "invalid memory model '" + mm + "': use one of sc, tso, pso";
-  }
+if(mm.empty() || mm == "sc")
+  return util_make_unique<memory_model_sct>(ns);
+else if(mm == "tso")
+  return util_make_unique<memory_model_tsot>(ns);
+else if(mm == "pso")
+  return util_make_unique<memory_model_psot>(ns);
+else
+{
+  throw "invalid memory model '" + mm + "': use one of sc, tso, pso";
+}
 }
 
 void setup_symex(
-  symex_bmct &symex,
-  const namespacet &ns,
-  const optionst &options,
-  ui_message_handlert &ui_message_handler)
+symex_bmct &symex,
+const namespacet &ns,
+const optionst &options,
+ui_message_handlert &ui_message_handler)
 {
-  messaget msg(ui_message_handler);
-  const symbolt *init_symbol;
-  if(!ns.lookup(INITIALIZE_FUNCTION, init_symbol))
-    symex.language_mode = init_symbol->mode;
+messaget msg(ui_message_handler);
+const symbolt *init_symbol;
+if(!ns.lookup(INITIALIZE_FUNCTION, init_symbol))
+  symex.language_mode = init_symbol->mode;
 
-  msg.status() << "Starting Bounded Model Checking" << messaget::eom;
+msg.status() << "Starting Bounded Model Checking" << messaget::eom;
 
-  symex.last_source_location.make_nil();
+symex.last_source_location.make_nil();
 
-  symex.unwindset.parse_unwind(options.get_option("unwind"));
-  symex.unwindset.parse_unwindset(options.get_list_option("unwindset"));
+symex.unwindset.parse_unwind(options.get_option("unwind"));
+symex.unwindset.parse_unwindset(options.get_list_option("unwindset"));
 }
 
 void slice(
-  symex_bmct &symex,
-  symex_target_equationt &symex_target_equation,
-  const namespacet &ns,
-  const optionst &options,
-  ui_message_handlert &ui_message_handler)
+symex_bmct &symex,
+symex_target_equationt &symex_target_equation,
+const namespacet &ns,
+const optionst &options,
+ui_message_handlert &ui_message_handler)
 {
-  messaget msg(ui_message_handler);
+messaget msg(ui_message_handler);
 
-  // any properties to check at all?
-  if(symex_target_equation.has_threads())
+// any properties to check at all?
+if(symex_target_equation.has_threads())
+{
+  // we should build a thread-aware SSA slicer
+  msg.statistics() << "no slicing due to threads" << messaget::eom;
+}
+else
+{
+  if(options.get_bool_option("slice-formula"))
   {
-    // we should build a thread-aware SSA slicer
-    msg.statistics() << "no slicing due to threads" << messaget::eom;
+    ::slice(symex_target_equation);
+    msg.statistics() << "slicing removed "
+                     << symex_target_equation.count_ignored_SSA_steps()
+                     << " assignments" << messaget::eom;
   }
   else
   {
-    if(options.get_bool_option("slice-formula"))
+    if(options.get_bool_option("simple-slice"))
     {
-      ::slice(symex_target_equation);
-      msg.statistics() << "slicing removed "
+      simple_slice(symex_target_equation);
+      msg.statistics() << "simple slicing removed "
                        << symex_target_equation.count_ignored_SSA_steps()
                        << " assignments" << messaget::eom;
     }
-    else
-    {
-      if(options.get_bool_option("simple-slice"))
-      {
-        simple_slice(symex_target_equation);
-        msg.statistics() << "simple slicing removed "
-                         << symex_target_equation.count_ignored_SSA_steps()
-                         << " assignments" << messaget::eom;
-      }
-    }
   }
-  msg.statistics() << "Generated " << symex.get_total_vccs() << " VCC(s), "
-                   << symex.get_remaining_vccs()
-                   << " remaining after simplification" << messaget::eom;
+}
+msg.statistics() << "Generated " << symex.get_total_vccs() << " VCC(s), "
+                 << symex.get_remaining_vccs()
+                 << " remaining after simplification" << messaget::eom;
 }
 
 void update_properties_status_from_symex_target_equation(
-  propertiest &properties,
-  std::unordered_set<irep_idt> &updated_properties,
-  const symex_target_equationt &equation)
+propertiest &properties,
+std::unordered_set<irep_idt> &updated_properties,
+const symex_target_equationt &equation)
 {
-  for(const auto &step : equation.SSA_steps)
+for(const auto &step : equation.SSA_steps)
+{
+  if(!step.is_assert())
+    continue;
+
+  irep_idt property_id = step.get_property_id();
+  CHECK_RETURN(!property_id.empty());
+
+  // Don't update status of properties that are constant 'false';
+  // we wouldn't have traces for them.
+  const auto status = step.cond_expr.is_true() ? property_statust::PASS
+                                               : property_statust::UNKNOWN;
+  auto emplace_result = properties.emplace(
+    property_id, property_infot{step.source.pc, step.comment, status});
+
+  if(emplace_result.second)
   {
-    if(!step.is_assert())
-      continue;
-
-    irep_idt property_id = step.get_property_id();
-    CHECK_RETURN(!property_id.empty());
-
-    // Don't update status of properties that are constant 'false';
-    // we wouldn't have traces for them.
-    const auto status = step.cond_expr.is_true() ? property_statust::PASS
-                                                 : property_statust::UNKNOWN;
-    auto emplace_result = properties.emplace(
-      property_id, property_infot{step.source.pc, step.comment, status});
-
-    if(emplace_result.second)
-    {
-      updated_properties.insert(property_id);
-    }
-    else
-    {
-      property_infot &property_info = emplace_result.first->second;
-      property_statust old_status = property_info.status;
-      property_info.status |= status;
-
-      if(property_info.status != old_status)
-        updated_properties.insert(property_id);
-    }
+    updated_properties.insert(property_id);
   }
+  else
+  {
+    property_infot &property_info = emplace_result.first->second;
+    property_statust old_status = property_info.status;
+    property_info.status |= status;
+
+    if(property_info.status != old_status)
+      updated_properties.insert(property_id);
+  }
+}
 }
 
 void update_status_of_not_checked_properties(
-  propertiest &properties,
-  std::unordered_set<irep_idt> &updated_properties)
+propertiest &properties,
+std::unordered_set<irep_idt> &updated_properties)
 {
-  for(auto &property_pair : properties)
+for(auto &property_pair : properties)
+{
+  if(property_pair.second.status == property_statust::NOT_CHECKED)
   {
-    if(property_pair.second.status == property_statust::NOT_CHECKED)
-    {
-      // This could be a NOT_CHECKED, NOT_REACHABLE or PASS,
-      // but the equation doesn't give us precise information.
-      property_pair.second.status = property_statust::PASS;
-      updated_properties.insert(property_pair.first);
-    }
+    // This could be a NOT_CHECKED, NOT_REACHABLE or PASS,
+    // but the equation doesn't give us precise information.
+    property_pair.second.status = property_statust::PASS;
+    updated_properties.insert(property_pair.first);
   }
+}
 }
 
 void update_status_of_unknown_properties(
-  propertiest &properties,
-  std::unordered_set<irep_idt> &updated_properties)
+propertiest &properties,
+std::unordered_set<irep_idt> &updated_properties)
 {
-  for(auto &property_pair : properties)
+for(auto &property_pair : properties)
+{
+  if(property_pair.second.status == property_statust::UNKNOWN)
   {
-    if(property_pair.second.status == property_statust::UNKNOWN)
-    {
-      // This could have any status except NOT_CHECKED.
-      // We consider them PASS because we do verification modulo bounds.
-      property_pair.second.status = property_statust::PASS;
-      updated_properties.insert(property_pair.first);
-    }
+    // This could have any status except NOT_CHECKED.
+    // We consider them PASS because we do verification modulo bounds.
+    property_pair.second.status = property_statust::PASS;
+    updated_properties.insert(property_pair.first);
   }
+}
 }
 
 void output_coverage_report(
-  const std::string &cov_out,
-  const abstract_goto_modelt &goto_model,
-  const symex_bmct &symex,
-  ui_message_handlert &ui_message_handler)
+const std::string &cov_out,
+const abstract_goto_modelt &goto_model,
+const symex_bmct &symex,
+ui_message_handlert &ui_message_handler)
 {
-  if(
-    !cov_out.empty() &&
-    symex.output_coverage_report(goto_model.get_goto_functions(), cov_out))
-  {
-    messaget log(ui_message_handler);
-    log.error() << "Failed to write symex coverage report to '" << cov_out
-                << "'" << messaget::eom;
-  }
+if(
+  !cov_out.empty() &&
+  symex.output_coverage_report(goto_model.get_goto_functions(), cov_out))
+{
+  messaget log(ui_message_handler);
+  log.error() << "Failed to write symex coverage report to '" << cov_out
+              << "'" << messaget::eom;
+}
 }
 
 void postprocess_equation(
-  symex_bmct &symex,
-  symex_target_equationt &equation,
-  const optionst &options,
-  const namespacet &ns,
-  ui_message_handlert &ui_message_handler)
+symex_bmct &symex,
+symex_target_equationt &equation,
+const optionst &options,
+const namespacet &ns,
+ui_message_handlert &ui_message_handler)
 {
-  const auto postprocess_equation_start = std::chrono::steady_clock::now();
-  // add a partial ordering, if required
-  if(equation.has_threads())
-  {
-    std::unique_ptr<memory_model_baset> memory_model =
-      get_memory_model(options, ns);
-    (*memory_model)(equation, ui_message_handler);
-  }
+const auto postprocess_equation_start = std::chrono::steady_clock::now();
+// add a partial ordering, if required
+if(equation.has_threads())
+{
+  std::unique_ptr<memory_model_baset> memory_model =
+    get_memory_model(options, ns);
+  (*memory_model)(equation, ui_message_handler);
+}
 
-  messaget log(ui_message_handler);
-  log.statistics() << "size of program expression: "
-                   << equation.SSA_steps.size() << " steps" << messaget::eom;
+messaget log(ui_message_handler);
+log.statistics() << "size of program expression: "
+                 << equation.SSA_steps.size() << " steps" << messaget::eom;
 
-  slice(symex, equation, ns, options, ui_message_handler);
+slice(symex, equation, ns, options, ui_message_handler);
 
-  if(options.get_bool_option("validate-ssa-equation"))
-  {
-    symex.validate(validation_modet::INVARIANT);
-  }
+if(options.get_bool_option("validate-ssa-equation"))
+{
+  symex.validate(validation_modet::INVARIANT);
+}
 
-  const auto postprocess_equation_stop = std::chrono::steady_clock::now();
-  std::chrono::duration<double> postprocess_equation_runtime =
-    std::chrono::duration<double>(
-      postprocess_equation_stop - postprocess_equation_start);
-  log.status() << "Runtime Postprocess Equation: "
-               << postprocess_equation_runtime.count() << "s" << messaget::eom;
+const auto postprocess_equation_stop = std::chrono::steady_clock::now();
+std::chrono::duration<double> postprocess_equation_runtime =
+  std::chrono::duration<double>(
+    postprocess_equation_stop - postprocess_equation_start);
+log.status() << "Runtime Postprocess Equation: "
+             << postprocess_equation_runtime.count() << "s" << messaget::eom;
 }
 
 std::chrono::duration<double> prepare_property_decider(
-  propertiest &properties,
-  symex_target_equationt &equation,
-  goto_symex_property_decidert &property_decider,
-  ui_message_handlert &ui_message_handler)
+propertiest &properties,
+symex_target_equationt &equation,
+goto_symex_property_decidert &property_decider,
+ui_message_handlert &ui_message_handler)
 {
-  auto solver_start = std::chrono::steady_clock::now();
+auto solver_start = std::chrono::steady_clock::now();
 
-  messaget log(ui_message_handler);
-  log.status()
-    << "Passing problem to "
-    << property_decider.get_decision_procedure().decision_procedure_text()
-    << messaget::eom;
+messaget log(ui_message_handler);
+log.status()
+  << "Passing problem to "
+  << property_decider.get_decision_procedure().decision_procedure_text()
+  << messaget::eom;
 
-  convert_symex_target_equation(
-    equation, property_decider.get_decision_procedure(), ui_message_handler);
-  property_decider.update_properties_goals_from_symex_target_equation(
-    properties);
-  property_decider.convert_goals();
+convert_symex_target_equation(
+  equation, property_decider.get_decision_procedure(), ui_message_handler);
+property_decider.update_properties_goals_from_symex_target_equation(
+  properties);
+property_decider.convert_goals();
 
-  auto solver_stop = std::chrono::steady_clock::now();
-  return std::chrono::duration<double>(solver_stop - solver_start);
+auto solver_stop = std::chrono::steady_clock::now();
+return std::chrono::duration<double>(solver_stop - solver_start);
 }
 
 void run_property_decider(
-  incremental_goto_checkert::resultt &result,
-  propertiest &properties,
-  goto_symex_property_decidert &property_decider,
-  ui_message_handlert &ui_message_handler,
-  std::chrono::duration<double> solver_runtime,
-  bool set_pass)
+incremental_goto_checkert::resultt &result,
+propertiest &properties,
+goto_symex_property_decidert &property_decider,
+ui_message_handlert &ui_message_handler,
+std::chrono::duration<double> solver_runtime,
+bool set_pass)
 {
-  auto solver_start = std::chrono::steady_clock::now();
+auto solver_start = std::chrono::steady_clock::now();
 
-  messaget log(ui_message_handler);
-  log.status()
-    << "Running "
-    << property_decider.get_decision_procedure().decision_procedure_text()
-    << messaget::eom;
+messaget log(ui_message_handler);
+log.status()
+  << "Running "
+  << property_decider.get_decision_procedure().decision_procedure_text()
+  << messaget::eom;
 
-  property_decider.add_constraint_from_goals(
-    [&properties](const irep_idt &property_id)
-    { return is_property_to_check(properties.at(property_id).status); });
+property_decider.add_constraint_from_goals(
+  [&properties](const irep_idt &property_id)
+  { return is_property_to_check(properties.at(property_id).status); });
 
-  //  auto const sat_solver_start = std::chrono::steady_clock::now();
-  //
-  //  decision_proceduret::resultt dec_result = property_decider.solve();
-  //
-  //  auto const sat_solver_stop = std::chrono::steady_clock::now();
-  //  std::chrono::duration<double> sat_solver_runtime =
-  //    std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
-  //  log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
-  //               << messaget::eom;
+//  auto const sat_solver_start = std::chrono::steady_clock::now();
+//
+//  decision_proceduret::resultt dec_result = property_decider.solve();
+//
+//  auto const sat_solver_stop = std::chrono::steady_clock::now();
+//  std::chrono::duration<double> sat_solver_runtime =
+//    std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
+//  log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
+//               << messaget::eom;
 
-  int VERISMART_SERVER=0;
-  int FIRST_REQUEST_STATUS_CODE=0;
-  int UNSAFE_RESULT_STATUS_CODE=1;
-  int SAFE_RESULT_STATUS_CODE=2;
-  int UNKNOWN_RESULT_STATUS_CODE=3;
-  int KILL_SIGNAL_STATUS_CODE=4;
+int VERISMART_SERVER=0;
+int FIRST_REQUEST_STATUS_CODE=0;
+int UNSAFE_RESULT_STATUS_CODE=1;
+int SAFE_RESULT_STATUS_CODE=2;
+int UNKNOWN_RESULT_STATUS_CODE=3;
+int KILL_SIGNAL_STATUS_CODE=4;
 
-  MPI_Status status;
+MPI_Status status;
 
-  MPI_Init(nullptr, nullptr);
+MPI_Init(nullptr, nullptr);
 
-  int initial_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &initial_rank);
-  int initial_size;
-  MPI_Comm_size(MPI_COMM_WORLD, &initial_size);
+int initial_rank;
+MPI_Comm_rank(MPI_COMM_WORLD, &initial_rank);
+int initial_size;
+MPI_Comm_size(MPI_COMM_WORLD, &initial_size);
 
-  MPI_Info info;
-  MPI_Info_create(&info);
-  MPI_Info_set(info, "ompi_global_scope", "true");
+MPI_Info info;
+MPI_Info_create(&info);
+MPI_Info_set(info, "ompi_global_scope", "true");
 
-  char portNameOmpiServer[MPI_MAX_PORT_NAME];
+char portNameOmpiServer[MPI_MAX_PORT_NAME];
 
-  MPI_Comm interCommunicator;
+MPI_Comm interCommunicator;
 
-  std::cout << "Rank: " << initial_rank << std::endl;
+std::cout << "Rank: " << initial_rank << std::endl;
 
-  if(initial_rank == 0) {
-    std::cout << "Looking up name!" << std::endl;
-    MPI_Lookup_name("compute", info, portNameOmpiServer);
-    std::cout << "Name lookup done: " << portNameOmpiServer << std::endl;
+if(initial_rank == 0) {
+  std::cout << "Looking up name!" << std::endl;
+  MPI_Lookup_name("compute", info, portNameOmpiServer);
+  std::cout << "Name lookup done: " << portNameOmpiServer << std::endl;
+}
+
+MPI_Comm_connect(portNameOmpiServer, info, 0, MPI_COMM_WORLD, &interCommunicator);
+std::cout << "Comm connected!" << std::endl;
+
+//  // Find selector variable
+//  const irep_idt selector_variable_name{"__cseq_selector_variable"};
+//  exprt selector_variable;
+//  const boolbv_mapt::mappingt &symbol_map =
+//    property_decider.get_stack_decision_procedure().get_map().get_mapping();
+//
+//  for(const auto &s : symbol_map)
+//  {
+//    if(
+//      has_prefix(id2string(s.first), selector_variable_name.c_str()) &&
+//      has_suffix(id2string(s.first), "#1"))
+//    {
+//      selector_variable = symbol_exprt(s.first, s.second.type);
+//      std::cout << selector_variable.id_string() << std::endl;
+//    }
+//  }
+//
+//  while(true)
+//  {
+//    // Request next selector value from master
+//    // ...
+//    mp_integer selector_value = 0;
+//
+//    // Create assumption literal for selector_variable == selector_value
+//    literal_exprt assumption =
+//      property_decider.get_stack_decision_procedure().handle(equal_exprt(
+//        selector_variable,
+//        from_integer(selector_value, selector_variable.type())));
+//    // Add assumption
+//    property_decider.get_stack_decision_procedure().push(
+//      exprt::operandst{assumption});
+//
+//    auto const sat_solver_start = std::chrono::steady_clock::now();
+//
+//    decision_proceduret::resultt dec_result = property_decider.solve();
+//
+//    auto const sat_solver_stop = std::chrono::steady_clock::now();
+//    std::chrono::duration<double> sat_solver_runtime =
+//      std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
+//    log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
+//                 << messaget::eom;
+//
+//    // We found a counterexample, return it.
+//    if(dec_result == decision_proceduret::resultt::D_SATISFIABLE)
+//    {
+//      break;
+//    }
+//
+//    // Remove assumption
+//    property_decider.get_stack_decision_procedure().pop();
+//  }
+
+int message;
+
+MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, FIRST_REQUEST_STATUS_CODE, interCommunicator);
+std::cout << "sent" << std::endl;
+
+while(true) {
+
+  char stringbuffer1[65536];
+  MPI_Recv(&stringbuffer1, 1000, MPI_CHAR, VERISMART_SERVER, MPI_ANY_TAG, interCommunicator, &status);
+
+  std::cout << "received" << std::endl;
+  //std::cout << stringbuffer1 << std::endl;
+  std::cout << "code: " << status.MPI_TAG << std::endl;
+
+  if(status.MPI_TAG == KILL_SIGNAL_STATUS_CODE) {
+    MPI_Finalize();
+    return;
   }
 
-  MPI_Comm_connect(portNameOmpiServer, info, 0, MPI_COMM_WORLD, &interCommunicator);
-  std::cout << "Comm connected!" << std::endl;
+  Document d;
+  d.Parse(stringbuffer1);
+  //std::cout << "a" << std::endl;
+  //fflush(stdout);
 
-  //  // Find selector variable
-  //  const irep_idt selector_variable_name{"__cseq_selector_variable"};
-  //  exprt selector_variable;
-  //  const boolbv_mapt::mappingt &symbol_map =
-  //    property_decider.get_stack_decision_procedure().get_map().get_mapping();
+  Node *adjacencyList = (Node *) malloc(sizeof(Node));
+  adjacencyList->identifierThread=-1;
+  adjacencyList->numberOfVisiblePoints=-1;
+  adjacencyList->nextThread=nullptr;
+  adjacencyList->nextTile=nullptr;
+
+  int numberOfThread = -1;
+
+  //    for(Value::ConstMemberIterator configFile = d.MemberBegin(); configFile != d.MemberEnd(); ++configFile) {
   //
-  //  for(const auto &s : symbol_map)
-  //  {
-  //    if(
-  //      has_prefix(id2string(s.first), selector_variable_name.c_str()) &&
-  //      has_suffix(id2string(s.first), "#1"))
-  //    {
-  //      selector_variable = symbol_exprt(s.first, s.second.type);
-  //      std::cout << selector_variable.id_string() << std::endl;
   //    }
-  //  }
-  //
-  //  while(true)
-  //  {
-  //    // Request next selector value from master
-  //    // ...
-  //    mp_integer selector_value = 0;
-  //
-  //    // Create assumption literal for selector_variable == selector_value
-  //    literal_exprt assumption =
-  //      property_decider.get_stack_decision_procedure().handle(equal_exprt(
-  //        selector_variable,
-  //        from_integer(selector_value, selector_variable.type())));
-  //    // Add assumption
-  //    property_decider.get_stack_decision_procedure().push(
-  //      exprt::operandst{assumption});
-  //
-  //    auto const sat_solver_start = std::chrono::steady_clock::now();
-  //
-  //    decision_proceduret::resultt dec_result = property_decider.solve();
-  //
-  //    auto const sat_solver_stop = std::chrono::steady_clock::now();
-  //    std::chrono::duration<double> sat_solver_runtime =
-  //      std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
-  //    log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
-  //                 << messaget::eom;
-  //
-  //    // We found a counterexample, return it.
-  //    if(dec_result == decision_proceduret::resultt::D_SATISFIABLE)
-  //    {
-  //      break;
-  //    }
-  //
-  //    // Remove assumption
-  //    property_decider.get_stack_decision_procedure().pop();
-  //  }
 
-  int message;
+  std::cout << "config:::::: " << d.MemberBegin()->name.GetString() << " " << (d.MemberBegin().operator++())->name.GetString() << std::endl;
 
-  MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, FIRST_REQUEST_STATUS_CODE, interCommunicator);
-  std::cout << "sent" << std::endl;
+  for(Value::ConstMemberIterator json = d[d.MemberBegin()->name.GetString()].MemberBegin(); json != d[d.MemberBegin()->name.GetString()].MemberEnd(); ++json) {
 
-  while(true) {
+    std::cout << "Member: " << json->name.GetString() << std::endl;
 
-    char stringbuffer1[65536];
-    MPI_Recv(&stringbuffer1, 1000, MPI_CHAR, VERISMART_SERVER, MPI_ANY_TAG, interCommunicator, &status);
+    Value &s = d[d.MemberBegin()->name.GetString()][json->name.GetString()];
 
-    std::cout << "received" << std::endl;
-    //std::cout << stringbuffer1 << std::endl;
-    std::cout << "code: " << status.MPI_TAG << std::endl;
+    std::vector<std::vector<int>> vec;
+    vec.resize(s.Size());
 
-    if(status.MPI_TAG == KILL_SIGNAL_STATUS_CODE) {
-      MPI_Finalize();
-      return;
-    }
+    std::vector<std::vector<int>> vec1;
+    vec.resize(s.Size());
 
-    Document d;
-    d.Parse(stringbuffer1);
-    //std::cout << "a" << std::endl;
-    //fflush(stdout);
+    for(SizeType i = 0; i < s.Size(); i++) {
 
-    Node *adjacencyList = (Node *) malloc(sizeof(Node));
-    adjacencyList->identifierThread=-1;
-    adjacencyList->numberOfVisiblePoints=-1;
-    adjacencyList->nextThread=nullptr;
-    adjacencyList->nextTile=nullptr;
+      const rapidjson::Value &data_vec = s[i];
 
-    int numberOfThread = -1;
+      for(SizeType j = 0; j < data_vec.Size(); j++) {
 
-    for(Value::ConstMemberIterator configFile = d.MemberBegin(); configFile != d.MemberEnd(); ++configFile) {
-      for(Value::ConstMemberIterator json = d[configFile->name.GetString()].MemberBegin(); json != d[configFile->name.GetString()].MemberEnd(); ++json) {
-
-        std::cout << "Member: " << json->name.GetString() << std::endl;
-
-        Value &s = d[configFile->name.GetString()][json->name.GetString()];
-
-        std::vector<std::vector<int>> vec;
-        vec.resize(s.Size());
-
-        std::vector<std::vector<int>> vec1;
-        vec.resize(s.Size());
-
-        if(configFile != d.MemberBegin()){
-          numberOfThread++;
-        }
-
-        for(SizeType i = 0; i < s.Size(); i++) {
-
-          const rapidjson::Value &data_vec = s[i];
-
-          for(SizeType j = 0; j < data_vec.Size(); j++) {
-
-            vec[i].push_back(data_vec[j].GetInt() + 1);
-            std::cout << data_vec[j].GetInt() << std::endl;
-
-            if(configFile != d.MemberBegin()) {
-              //vec[i].push_back(data_vec[j].GetInt() + 1);
-              for(int p=0; p<data_vec[j].GetInt(); p++) {
-                std::cout << "_cs_SwCtrl_" << numberOfThread << "_" << p << std::endl;
-              }
-            }
-          }
-        }
-        vec.clear();
+        vec[i].push_back(data_vec[j].GetInt() + 1);
+        std::cout << data_vec[j].GetInt() << std::endl;
       }
     }
-
-    enqueueThread(adjacencyList, 0, 6);
-    enqueueThread(adjacencyList, 1, 8);
-    enqueueThread(adjacencyList, 2, 10);
-
-    enqueueTile(adjacencyList, 0, 1, 3);
-    enqueueTile(adjacencyList, 0, 5, 5);
-    enqueueTile(adjacencyList, 1, 2, 4);
-    enqueueTile(adjacencyList, 1, 6, 7);
-    enqueueTile(adjacencyList, 2, 3, 6);
-    enqueueTile(adjacencyList, 2, 8, 10);
-
-    printAdjacencyList(adjacencyList);
-
-    // 3. Stringify the DOM
-    StringBuffer buffer;
-    Writer<StringBuffer> writer(buffer);
-    d.Accept(writer);
-
-    // Output {"project":"rapidjson","stars":11}
-    std::cout << initial_rank << " " << buffer.GetString() << std::endl;
-
-    std::string input = "aldo";
-    std::ofstream out("output.txt");
-    out << input;
-    out.close();
-
-    auto const sat_solver_start = std::chrono::steady_clock::now();
-
-    decision_proceduret::resultt dec_result = property_decider.solve();
-
-    auto const sat_solver_stop = std::chrono::steady_clock::now();
-    std::chrono::duration<double> sat_solver_runtime =
-      std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
-    log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
-                 << messaget::eom;
-
-    // We found a counterexample, return it.
-    if(dec_result == decision_proceduret::resultt::D_SATISFIABLE) {
-      MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, UNSAFE_RESULT_STATUS_CODE, interCommunicator);
-      std::cout << "sent" << std::endl;
-    }
-    else if(dec_result == decision_proceduret::resultt::D_UNSATISFIABLE) {
-      MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, SAFE_RESULT_STATUS_CODE, interCommunicator);
-      std::cout << "sent" << std::endl;
-    }
-    else if(dec_result == decision_proceduret::resultt::D_ERROR) {
-      MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, UNKNOWN_RESULT_STATUS_CODE, interCommunicator);
-      std::cout << "sent" << std::endl;
-    }
-
-    property_decider.update_properties_status_from_goals(
-      properties, result.updated_properties, dec_result, set_pass);
-
-    auto solver_stop = std::chrono::steady_clock::now();
-    solver_runtime += std::chrono::duration<double>(solver_stop - solver_start);
-    log.status() << "Runtime decision procedure: " << solver_runtime.count()
-                 << "s" << messaget::eom;
-
-    if(dec_result == decision_proceduret::resultt::D_SATISFIABLE)
-    {
-      result.progress =
-        incremental_goto_checkert::resultt::progresst::FOUND_FAIL;
-    }
+    vec.clear();
   }
 
-  MPI_Finalize();
+  for(Value::ConstMemberIterator json = d[(d.MemberBegin().operator++())->name.GetString()].MemberBegin(); json != d[(d.MemberBegin().operator++())->name.GetString()].MemberEnd(); ++json) {
+
+    std::cout << "Member: " << json->name.GetString() << std::endl;
+
+    Value &s = d[(d.MemberBegin().operator++())->name.GetString()][json->name.GetString()];
+
+    std::vector<std::vector<int>> vec;
+    vec.resize(s.Size());
+
+    std::vector<std::vector<int>> vec1;
+    vec.resize(s.Size());
+
+    numberOfThread++;
+
+    for(SizeType i = 0; i < s.Size(); i++) {
+
+      const rapidjson::Value &data_vec = s[i];
+
+      for(SizeType j = 0; j < data_vec.Size(); j++) {
+
+        vec[i].push_back(data_vec[j].GetInt() + 1);
+        std::cout << data_vec[j].GetInt() << std::endl;
+
+        //vec[i].push_back(data_vec[j].GetInt() + 1);
+        for(int p=0; p<data_vec[j].GetInt(); p++) {
+          std::cout << "_cs_SwCtrl_" << numberOfThread << "_" << p << std::endl;
+        }
+      }
+    }
+    vec.clear();
+  }
+
+  enqueueThread(adjacencyList, 0, 6);
+  enqueueThread(adjacencyList, 1, 8);
+  enqueueThread(adjacencyList, 2, 10);
+
+  enqueueTile(adjacencyList, 0, 1, 3);
+  enqueueTile(adjacencyList, 0, 5, 5);
+  enqueueTile(adjacencyList, 1, 2, 4);
+  enqueueTile(adjacencyList, 1, 6, 7);
+  enqueueTile(adjacencyList, 2, 3, 6);
+  enqueueTile(adjacencyList, 2, 8, 10);
+
+  printAdjacencyList(adjacencyList);
+
+  // 3. Stringify the DOM
+  StringBuffer buffer;
+  Writer<StringBuffer> writer(buffer);
+  d.Accept(writer);
+
+  // Output {"project":"rapidjson","stars":11}
+  std::cout << initial_rank << " " << buffer.GetString() << std::endl;
+
+  std::string input = "aldo";
+  std::ofstream out("output.txt");
+  out << input;
+  out.close();
+
+  auto const sat_solver_start = std::chrono::steady_clock::now();
+
+  decision_proceduret::resultt dec_result = property_decider.solve();
+
+  auto const sat_solver_stop = std::chrono::steady_clock::now();
+  std::chrono::duration<double> sat_solver_runtime =
+    std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
+  log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
+               << messaget::eom;
+
+  // We found a counterexample, return it.
+  if(dec_result == decision_proceduret::resultt::D_SATISFIABLE) {
+    MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, UNSAFE_RESULT_STATUS_CODE, interCommunicator);
+    std::cout << "sent" << std::endl;
+  }
+  else if(dec_result == decision_proceduret::resultt::D_UNSATISFIABLE) {
+    MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, SAFE_RESULT_STATUS_CODE, interCommunicator);
+    std::cout << "sent" << std::endl;
+  }
+  else if(dec_result == decision_proceduret::resultt::D_ERROR) {
+    MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, UNKNOWN_RESULT_STATUS_CODE, interCommunicator);
+    std::cout << "sent" << std::endl;
+  }
+
+  property_decider.update_properties_status_from_goals(
+    properties, result.updated_properties, dec_result, set_pass);
+
+  auto solver_stop = std::chrono::steady_clock::now();
+  solver_runtime += std::chrono::duration<double>(solver_stop - solver_start);
+  log.status() << "Runtime decision procedure: " << solver_runtime.count()
+               << "s" << messaget::eom;
+
+  if(dec_result == decision_proceduret::resultt::D_SATISFIABLE)
+  {
+    result.progress =
+      incremental_goto_checkert::resultt::progresst::FOUND_FAIL;
+  }
+}
+
+MPI_Finalize();
 }
 
 void enqueueThread(Node *list, int identifierThread, int numberOfVisiblePoints) {
 
-  Node *newThread = (Node *) malloc(sizeof(Node));
-  newThread->identifierThread = identifierThread;
-  newThread->numberOfVisiblePoints = numberOfVisiblePoints;
-  newThread->nextThread = nullptr;
-  newThread->nextTile = nullptr;
+Node *newThread = (Node *) malloc(sizeof(Node));
+newThread->identifierThread = identifierThread;
+newThread->numberOfVisiblePoints = numberOfVisiblePoints;
+newThread->nextThread = nullptr;
+newThread->nextTile = nullptr;
 
-  Node *currentNode = list;
-  while (currentNode->nextThread != nullptr) {
-    currentNode = currentNode->nextThread;
-  }
-  currentNode->nextThread = newThread;
+Node *currentNode = list;
+while (currentNode->nextThread != nullptr) {
+  currentNode = currentNode->nextThread;
+}
+currentNode->nextThread = newThread;
 }
 
 void enqueueTile(Node *list, int identifierThread, int firstVisiblePoint, int lastVisiblePoint) {
 
-  Node *currentThread = list;
+Node *currentThread = list;
 
-  while (currentThread != nullptr) {
+while (currentThread != nullptr) {
 
-    if (identifierThread==currentThread->identifierThread){
+  if (identifierThread==currentThread->identifierThread){
 
-      Node *currentTile = currentThread;
+    Node *currentTile = currentThread;
 
-      while (currentTile->nextTile!=nullptr){
-        currentTile=currentTile->nextTile;
-      }
-
-      Node *newTile = (Node *) malloc(sizeof(Node));
-      newTile->identifierThread = firstVisiblePoint;
-      newTile->numberOfVisiblePoints = lastVisiblePoint;
-      newTile->nextThread = nullptr;
-      newTile->nextTile = nullptr;
-
-      currentTile->nextTile = newTile;
-      return;
+    while (currentTile->nextTile!=nullptr){
+      currentTile=currentTile->nextTile;
     }
 
-    currentThread = currentThread->nextThread;
+    Node *newTile = (Node *) malloc(sizeof(Node));
+    newTile->identifierThread = firstVisiblePoint;
+    newTile->numberOfVisiblePoints = lastVisiblePoint;
+    newTile->nextThread = nullptr;
+    newTile->nextTile = nullptr;
+
+    currentTile->nextTile = newTile;
+    return;
   }
+
+  currentThread = currentThread->nextThread;
+}
 }
 
 void printAdjacencyList(Node* list){
 
-  Node* currentThread = list->nextThread;
-  while (currentThread!=nullptr){
+Node* currentThread = list->nextThread;
+while (currentThread!=nullptr){
 
-    std::cout << currentThread->identifierThread << " " << currentThread->numberOfVisiblePoints << " -> ";
+  std::cout << currentThread->identifierThread << " " << currentThread->numberOfVisiblePoints << " -> ";
 
-    Node* currentTile = currentThread->nextTile;
-    while (currentTile!=nullptr){
-      std::cout << currentTile->identifierThread << " " << currentTile->numberOfVisiblePoints << " - ";
-      currentTile=currentTile->nextTile;
-    }
-    std::cout << std::endl;
-
-    currentThread=currentThread->nextThread;
+  Node* currentTile = currentThread->nextTile;
+  while (currentTile!=nullptr){
+    std::cout << currentTile->identifierThread << " " << currentTile->numberOfVisiblePoints << " - ";
+    currentTile=currentTile->nextTile;
   }
+  std::cout << std::endl;
+
+  currentThread=currentThread->nextThread;
+}
 }
 
 /*void setAssumptions(Node* list){
 
-  //  // Find selector variable
-  //  const irep_idt selector_variable_name{"__cseq_selector_variable"};
-  //  exprt selector_variable;
-  //  const boolbv_mapt::mappingt &symbol_map =
-  //    property_decider.get_stack_decision_procedure().get_map().get_mapping();
-  //
-  //  for(const auto &s : symbol_map)
-  //  {
-  //    if(
-  //      has_prefix(id2string(s.first), selector_variable_name.c_str()) &&
-  //      has_suffix(id2string(s.first), "#1"))
-  //    {
-  //      selector_variable = symbol_exprt(s.first, s.second.type);
-  //      std::cout << selector_variable.id_string() << std::endl;
-  //    }
-  //  }
+//  // Find selector variable
+//  const irep_idt selector_variable_name{"__cseq_selector_variable"};
+//  exprt selector_variable;
+//  const boolbv_mapt::mappingt &symbol_map =
+//    property_decider.get_stack_decision_procedure().get_map().get_mapping();
+//
+//  for(const auto &s : symbol_map)
+//  {
+//    if(
+//      has_prefix(id2string(s.first), selector_variable_name.c_str()) &&
+//      has_suffix(id2string(s.first), "#1"))
+//    {
+//      selector_variable = symbol_exprt(s.first, s.second.type);
+//      std::cout << selector_variable.id_string() << std::endl;
+//    }
+//  }
 
-  Node* currentThread = list;
-  while (currentThread!=nullptr){
+Node* currentThread = list;
+while (currentThread!=nullptr){
 
-    int identifierThread = currentThread->identifierThread;
-    int numberVisiblePoints = currentThread->numberOfVisiblePoints;
+  int identifierThread = currentThread->identifierThread;
+  int numberVisiblePoints = currentThread->numberOfVisiblePoints;
 
-    int pushButtons[numberVisiblePoints+1];
-    memset(pushButtons, 0, numberVisiblePoints + 1 * sizeof(int));
-    for (int i = 0; i < numberVisiblePoints+1; ++i) {
-      pushButtons[i]=0;
-    }
-    pushButtons[0] = identifierThread;
-
-    Node* currentTile = currentThread->nextTile;
-    while (currentTile!=nullptr){
-
-      int firstVisiblePoint = currentTile->identifierThread;
-      int lastVisiblePoint = currentTile->numberOfVisiblePoints;
-
-      for (int i = firstVisiblePoint; i <= lastVisiblePoint; ++i) {
-        pushButtons[i]=1;
-      }
-
-      currentTile = currentTile->nextTile;
-    }
-
-    for (int i = 2; i < numberVisiblePoints+1; ++i) {
-      pushButtons[i] += pushButtons[i-1];
-    }
-
-    for (int i = 1; i < numberVisiblePoints+1; ++i) {
-      printf("_cs_SwCtrl_%d_%d = %d\n", pushButtons[0], i, pushButtons[i]);
-      //    // Request next selector value from master
-      //    // ...
-      //    mp_integer selector_value = 0;
-      //
-      //    // Create assumption literal for selector_variable == selector_value
-      //    literal_exprt assumption =
-      //      property_decider.get_stack_decision_procedure().handle(equal_exprt(
-      //        selector_variable,
-      //        from_integer(selector_value, selector_variable.type())));
-      //    // Add assumption
-      //    property_decider.get_stack_decision_procedure().push(
-      //      exprt::operandst{assumption});
-    }
-    puts("");
-
-    currentThread = currentThread->nextThread;
+  int pushButtons[numberVisiblePoints+1];
+  memset(pushButtons, 0, numberVisiblePoints + 1 * sizeof(int));
+  for (int i = 0; i < numberVisiblePoints+1; ++i) {
+    pushButtons[i]=0;
   }
+  pushButtons[0] = identifierThread;
+
+  Node* currentTile = currentThread->nextTile;
+  while (currentTile!=nullptr){
+
+    int firstVisiblePoint = currentTile->identifierThread;
+    int lastVisiblePoint = currentTile->numberOfVisiblePoints;
+
+    for (int i = firstVisiblePoint; i <= lastVisiblePoint; ++i) {
+      pushButtons[i]=1;
+    }
+
+    currentTile = currentTile->nextTile;
+  }
+
+  for (int i = 2; i < numberVisiblePoints+1; ++i) {
+    pushButtons[i] += pushButtons[i-1];
+  }
+
+  for (int i = 1; i < numberVisiblePoints+1; ++i) {
+    printf("_cs_SwCtrl_%d_%d = %d\n", pushButtons[0], i, pushButtons[i]);
+    //    // Request next selector value from master
+    //    // ...
+    //    mp_integer selector_value = 0;
+    //
+    //    // Create assumption literal for selector_variable == selector_value
+    //    literal_exprt assumption =
+    //      property_decider.get_stack_decision_procedure().handle(equal_exprt(
+    //        selector_variable,
+    //        from_integer(selector_value, selector_variable.type())));
+    //    // Add assumption
+    //    property_decider.get_stack_decision_procedure().push(
+    //      exprt::operandst{assumption});
+  }
+  puts("");
+
+  currentThread = currentThread->nextThread;
+}
 }*/
 
 /*
