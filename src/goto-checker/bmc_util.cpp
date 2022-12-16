@@ -52,16 +52,15 @@ Module: Bounded Model Checking Utilities
 //#include <util/suffix.h>
 
 struct Node {
-int identifierThread;
-int numberOfVisiblePoints;
-struct Node* nextTile;
-struct Node* nextThread;
+int identifier_thread;
+int number_visible_points;
+struct Node* next_tile;
+struct Node* next_thread;
 };
 
-void enqueueThread(Node *list, int identifierThread, int numberOfVisiblePoints);
-void enqueueTile(Node *list, int identifierThread, int firstVisiblePoint, int lastVisiblePoint);
-void printAdjacencyList(Node* list);
-void printPushButtons(Node* list);
+void enqueueThread(Node *list, int identifier_thread, int number_visible_points);
+void enqueueTile(Node *list, int identifier_thread, int first_visible_point, int last_visible_point);
+void printPushbuttonList(Node* list);
 
 void message_building_error_trace(messaget &log)
 {
@@ -429,16 +428,6 @@ property_decider.add_constraint_from_goals(
   [&properties](const irep_idt &property_id)
   { return is_property_to_check(properties.at(property_id).status); });
 
-//  auto const sat_solver_start = std::chrono::steady_clock::now();
-//
-//  decision_proceduret::resultt dec_result = property_decider.solve();
-//
-//  auto const sat_solver_stop = std::chrono::steady_clock::now();
-//  std::chrono::duration<double> sat_solver_runtime =
-//    std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
-//  log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
-//               << messaget::eom;
-
 int VERISMART_SERVER=0;
 int FIRST_REQUEST_STATUS_CODE=0;
 int UNSAFE_RESULT_STATUS_CODE=1;
@@ -450,29 +439,277 @@ MPI_Status status;
 
 MPI_Init(nullptr, nullptr);
 
-int initial_rank;
-MPI_Comm_rank(MPI_COMM_WORLD, &initial_rank);
-int initial_size;
-MPI_Comm_size(MPI_COMM_WORLD, &initial_size);
+int rank_slave_process;
+MPI_Comm_rank(MPI_COMM_WORLD, &rank_slave_process);
+int size_client_communicator;
+MPI_Comm_size(MPI_COMM_WORLD, &size_client_communicator);
 
 MPI_Info info;
 MPI_Info_create(&info);
 MPI_Info_set(info, "ompi_global_scope", "true");
 
-char portNameOmpiServer[MPI_MAX_PORT_NAME];
+char port_name[MPI_MAX_PORT_NAME];
 
-MPI_Comm interCommunicator;
+MPI_Comm inter_communicator;
 
-std::cout << "Rank: " << initial_rank << std::endl;
-
-if(initial_rank == 0) {
+if(rank_slave_process == 0) {
   std::cout << "Looking up name!" << std::endl;
-  MPI_Lookup_name("compute", info, portNameOmpiServer);
-  std::cout << "Name lookup done: " << portNameOmpiServer << std::endl;
+  MPI_Lookup_name("tile_distribution_service", info, port_name);
+  std::cout << "Name lookup done: " << port_name << std::endl;
 }
 
-MPI_Comm_connect(portNameOmpiServer, info, 0, MPI_COMM_WORLD, &interCommunicator);
+MPI_Comm_connect(port_name, info, 0, MPI_COMM_WORLD, &inter_communicator);
 std::cout << "Comm connected!" << std::endl;
+
+int message;
+
+MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, FIRST_REQUEST_STATUS_CODE, inter_communicator);
+std::cout << "sent" << std::endl;
+
+while(true) {
+
+  char string_JSON_formatted_data[65536];
+  MPI_Recv(&string_JSON_formatted_data, 1000, MPI_CHAR, VERISMART_SERVER, MPI_ANY_TAG, inter_communicator, &status);
+
+  std::cout << "received" << std::endl;
+  //std::cout << string_JSON_formatted_data << std::endl;
+  std::cout << "code: " << status.MPI_TAG << std::endl;
+
+  if(status.MPI_TAG == KILL_SIGNAL_STATUS_CODE) {
+    MPI_Finalize();
+    return;
+  }
+
+  Document d;
+  d.Parse(string_JSON_formatted_data);
+  //std::cout << "a" << std::endl;
+  //fflush(stdout);
+
+  Node *pushbutton_list = (Node *) malloc(sizeof(Node));
+  pushbutton_list->identifier_thread=-1;
+  pushbutton_list->number_visible_points=-1;
+  pushbutton_list->next_thread=nullptr;
+  pushbutton_list->next_tile=nullptr;
+
+  int number_of_threads = -1;
+
+  std::cout << "config:::::: " << d.MemberBegin()->name.GetString() << " " << (d.MemberBegin().operator++())->name.GetString() << std::endl;
+
+  for(Value::ConstMemberIterator json = d[d.MemberBegin()->name.GetString()].MemberBegin(); json != d[d.MemberBegin()->name.GetString()].MemberEnd(); ++json) {
+
+    std::cout << "Member: " << json->name.GetString() << std::endl;
+
+    Value &s = d[d.MemberBegin()->name.GetString()][json->name.GetString()];
+    const rapidjson::Value &data_vec = s[0];
+
+    enqueueThread(pushbutton_list, data_vec[0].GetInt(), data_vec[1].GetInt());
+  }
+
+  for(Value::ConstMemberIterator json = d[(d.MemberBegin().operator++())->name.GetString()].MemberBegin(); json != d[(d.MemberBegin().operator++())->name.GetString()].MemberEnd(); ++json) {
+
+    Value &s = d[(d.MemberBegin().operator++())->name.GetString()][json->name.GetString()];
+    number_of_threads++;
+
+    for(SizeType i = 0; i < s.Size(); i++) {
+      const rapidjson::Value &data_vec = s[i];
+      enqueueTile(pushbutton_list, number_of_threads, data_vec[0].GetInt(), data_vec[1].GetInt());
+    }
+  }
+
+  printPushbuttonList(pushbutton_list);
+
+  //{"num_vp":{"thr1_0":[[0,6]],"thr2_0":[[1,8]],"main":[[2,4]]},"s33":{"thr1_0":[[5,5]],"thr2_0":[[7,7]],"main":[[1,1]]}}
+
+  Node* current_thread = pushbutton_list->next_thread;
+  while (current_thread!=nullptr){
+
+    int identifier_thread = current_thread->identifier_thread;
+    int number_visible_points = current_thread->number_visible_points;
+
+    std::vector<int> array_numerical_labels;
+
+    for (int i = 0; i < number_visible_points+1; ++i) {
+      array_numerical_labels.push_back(0);
+    }
+    std::cout << "SIZE::::: " << array_numerical_labels.size() << std::endl;
+    std::cout << "NUM_VP::::: " << number_visible_points+1 << std::endl;
+    array_numerical_labels.at(0)=identifier_thread;
+
+    Node* current_tile = current_thread->next_tile;
+    while (current_tile!=nullptr){
+
+      int first_visible_point = current_tile->identifier_thread;
+      int last_visible_point = current_tile->number_visible_points;
+
+      for (int i = first_visible_point; i <= last_visible_point; ++i) {
+        array_numerical_labels.at(i)=1;
+      }
+
+      current_tile = current_tile->next_tile;
+    }
+
+    array_numerical_labels.at(1)=0;
+
+    for (int i = 2; i < number_visible_points+1; ++i) {
+      //array_numerical_labels.at(i) += array_numerical_labels.at(i-1);
+      array_numerical_labels.at(i) = array_numerical_labels.at(i)*(i-1) + (1-array_numerical_labels.at(i))*array_numerical_labels.at(i-1);
+    }
+
+    for (int i = 1; i < number_visible_points+1; ++i) {
+      printf("_cs_SwCtrl_%d_%d = %d\n", array_numerical_labels.at(0), i-1, array_numerical_labels.at(i));
+
+      // Find selector variable
+      char string_variable_name[100];
+      sprintf(string_variable_name, "_cs_SwCtrl_%d_%d", array_numerical_labels.at(0), i-1);
+      //  const irep_idt selector_variable_name{string_variable_name};
+      //  exprt selector_variable;
+      //  const boolbv_mapt::mappingt &symbol_map =
+      //    property_decider.get_stack_decision_procedure().get_map().get_mapping();
+      //
+      //  for(const auto &s : symbol_map)
+      //  {
+      //    if(
+      //      has_prefix(id2string(s.first), selector_variable_name.c_str()) &&
+      //      has_suffix(id2string(s.first), "#1"))
+      //    {
+      //      selector_variable = symbol_exprt(s.first, s.second.type);
+      //      std::cout << selector_variable.id_string() << std::endl;
+      //    }
+      //  }
+
+      mp_integer selector_value = array_numerical_labels.at(i);
+      //    // Create assumption literal for selector_variable == selector_value
+      //    literal_exprt assumption =
+      //      property_decider.get_stack_decision_procedure().handle(equal_exprt(
+      //        selector_variable,
+      //        from_integer(selector_value, selector_variable.type())));
+      //    // Add assumption
+      //    property_decider.get_stack_decision_procedure().push(
+      //      exprt::operandst{assumption});
+    }
+    puts("");
+
+    current_thread = current_thread->next_thread;
+  }
+
+  // 3. Stringify the DOM
+  StringBuffer buffer;
+  Writer<StringBuffer> writer(buffer);
+  d.Accept(writer);
+
+  // Output {"project":"rapidjson","stars":11}
+  std::cout << rank_slave_process << " " << buffer.GetString() << std::endl;
+
+  auto const sat_solver_start = std::chrono::steady_clock::now();
+
+  decision_proceduret::resultt dec_result = property_decider.solve();
+
+  auto const sat_solver_stop = std::chrono::steady_clock::now();
+  std::chrono::duration<double> sat_solver_runtime =
+    std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
+  log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
+               << messaget::eom;
+
+  // We found a counterexample, return it.
+  if(dec_result == decision_proceduret::resultt::D_SATISFIABLE) {
+    MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, UNSAFE_RESULT_STATUS_CODE, inter_communicator);
+    std::cout << "sent" << std::endl;
+
+    std::string counterexample_trace = "counterexample";
+    std::ofstream out("counterexamples.txt");
+    out << counterexample_trace;
+    out.close();
+  }
+  else if(dec_result == decision_proceduret::resultt::D_UNSATISFIABLE) {
+    MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, SAFE_RESULT_STATUS_CODE, inter_communicator);
+    std::cout << "sent" << std::endl;
+  }
+  else if(dec_result == decision_proceduret::resultt::D_ERROR) {
+    MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, UNKNOWN_RESULT_STATUS_CODE, inter_communicator);
+    std::cout << "sent" << std::endl;
+  }
+
+  property_decider.update_properties_status_from_goals(
+    properties, result.updated_properties, dec_result, set_pass);
+
+  auto solver_stop = std::chrono::steady_clock::now();
+  solver_runtime += std::chrono::duration<double>(solver_stop - solver_start);
+  log.status() << "Runtime decision procedure: " << solver_runtime.count()
+               << "s" << messaget::eom;
+
+  // Remove assumption
+  //    property_decider.get_stack_decision_procedure().pop();
+
+  if(dec_result == decision_proceduret::resultt::D_SATISFIABLE)
+  {
+    result.progress =
+      incremental_goto_checkert::resultt::progresst::FOUND_FAIL;
+  }
+}
+
+MPI_Finalize();
+}
+
+void enqueueThread(Node *list, int identifier_thread, int number_visible_points) {
+
+  Node *new_thread = (Node *) malloc(sizeof(Node));
+  new_thread->identifier_thread = identifier_thread;
+  new_thread->number_visible_points = number_visible_points;
+  new_thread->next_thread = nullptr;
+  new_thread->next_tile = nullptr;
+
+  Node *current_thread = list;
+  while (current_thread->next_thread != nullptr) {
+    current_thread = current_thread->next_thread;
+  }
+  current_thread->next_thread = new_thread;
+}
+
+void enqueueTile(Node *list, int identifier_thread, int first_visible_point, int last_visible_point) {
+
+  Node *current_thread = list;
+
+  while (current_thread != nullptr) {
+
+    if (identifier_thread==current_thread->identifier_thread){
+
+      Node *current_tile = current_thread;
+
+      while (current_tile->next_tile!=nullptr){
+        current_tile=current_tile->next_tile;
+      }
+
+      Node *new_tile = (Node *) malloc(sizeof(Node));
+      new_tile->identifier_thread = first_visible_point;
+      new_tile->number_visible_points = last_visible_point;
+      new_tile->next_thread = nullptr;
+      new_tile->next_tile = nullptr;
+
+      current_tile->next_tile = new_tile;
+      return;
+    }
+
+    current_thread = current_thread->next_thread;
+  }
+}
+
+void printPushbuttonList(Node* list){
+
+  Node* current_thread = list->next_thread;
+  while (current_thread!=nullptr){
+
+    std::cout << current_thread->identifier_thread << " " << current_thread->number_visible_points << " -> ";
+
+    Node* current_tile = current_thread->next_tile;
+    while (current_tile!=nullptr){
+      std::cout << current_tile->identifier_thread << " " << current_tile->number_visible_points << " - ";
+      current_tile=current_tile->next_tile;
+    }
+    std::cout << std::endl;
+
+    current_thread=current_thread->next_thread;
+  }
+}
 
 //  // Find selector variable
 //  const irep_idt selector_variable_name{"__cseq_selector_variable"};
@@ -525,250 +762,3 @@ std::cout << "Comm connected!" << std::endl;
 //    // Remove assumption
 //    property_decider.get_stack_decision_procedure().pop();
 //  }
-
-int message;
-
-MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, FIRST_REQUEST_STATUS_CODE, interCommunicator);
-std::cout << "sent" << std::endl;
-
-while(true) {
-
-  char stringbuffer1[65536];
-  MPI_Recv(&stringbuffer1, 1000, MPI_CHAR, VERISMART_SERVER, MPI_ANY_TAG, interCommunicator, &status);
-
-  std::cout << "received" << std::endl;
-  //std::cout << stringbuffer1 << std::endl;
-  std::cout << "code: " << status.MPI_TAG << std::endl;
-
-  if(status.MPI_TAG == KILL_SIGNAL_STATUS_CODE) {
-    MPI_Finalize();
-    return;
-  }
-
-  Document d;
-  d.Parse(stringbuffer1);
-  //std::cout << "a" << std::endl;
-  //fflush(stdout);
-
-  Node *adjacencyList = (Node *) malloc(sizeof(Node));
-  adjacencyList->identifierThread=-1;
-  adjacencyList->numberOfVisiblePoints=-1;
-  adjacencyList->nextThread=nullptr;
-  adjacencyList->nextTile=nullptr;
-
-  int numberOfThread = -1;
-
-  std::cout << "config:::::: " << d.MemberBegin()->name.GetString() << " " << (d.MemberBegin().operator++())->name.GetString() << std::endl;
-
-  for(Value::ConstMemberIterator json = d[d.MemberBegin()->name.GetString()].MemberBegin(); json != d[d.MemberBegin()->name.GetString()].MemberEnd(); ++json) {
-
-    std::cout << "Member: " << json->name.GetString() << std::endl;
-
-    Value &s = d[d.MemberBegin()->name.GetString()][json->name.GetString()];
-    const rapidjson::Value &data_vec = s[0];
-
-    enqueueThread(adjacencyList, data_vec[0].GetInt(), data_vec[1].GetInt());
-  }
-
-  for(Value::ConstMemberIterator json = d[(d.MemberBegin().operator++())->name.GetString()].MemberBegin(); json != d[(d.MemberBegin().operator++())->name.GetString()].MemberEnd(); ++json) {
-
-    Value &s = d[(d.MemberBegin().operator++())->name.GetString()][json->name.GetString()];
-    numberOfThread++;
-
-    for(SizeType i = 0; i < s.Size(); i++) {
-      const rapidjson::Value &data_vec = s[i];
-      enqueueTile(adjacencyList, numberOfThread, data_vec[0].GetInt(), data_vec[1].GetInt());
-    }
-  }
-
-  printAdjacencyList(adjacencyList);
-
-  //{"num_vp":{"thr1_0":[[0,6]],"thr2_0":[[1,8]],"main":[[2,4]]},"s33":{"thr1_0":[[5,5]],"thr2_0":[[7,7]],"main":[[1,1]]}}
-
-  Node* currentThread = adjacencyList->nextThread;
-  while (currentThread!=nullptr){
-
-    int identifierThread = currentThread->identifierThread;
-    int numberVisiblePoints = currentThread->numberOfVisiblePoints;
-
-    std::vector<int> pushButtons;
-
-    for (int i = 0; i < numberVisiblePoints+1; ++i) {
-      pushButtons.push_back(0);
-    }
-    std::cout << "SIZE::::: " << pushButtons.size() << std::endl;
-    std::cout << "NUM_VP::::: " << numberVisiblePoints+1 << std::endl;
-    pushButtons.at(0)=identifierThread;
-
-    Node* currentTile = currentThread->nextTile;
-    while (currentTile!=nullptr){
-
-      int firstVisiblePoint = currentTile->identifierThread;
-      int lastVisiblePoint = currentTile->numberOfVisiblePoints;
-
-      for (int i = firstVisiblePoint; i <= lastVisiblePoint; ++i) {
-        pushButtons.at(i)=1;
-      }
-
-      currentTile = currentTile->nextTile;
-    }
-
-    for (int i = 2; i < numberVisiblePoints+1; ++i) {
-      pushButtons.at(i) += pushButtons.at(i-1);
-    }
-
-    for (int i = 1; i < numberVisiblePoints+1; ++i) {
-      printf("_cs_SwCtrl_%d_%d = %d\n", pushButtons.at(0), i-1, pushButtons.at(i));
-
-      // Find selector variable
-      char string_variable_name[100];
-      sprintf(string_variable_name, "_cs_SwCtrl_%d_%d", pushButtons.at(0), i-1);
-      //  const irep_idt selector_variable_name{string_variable_name};
-      //  exprt selector_variable;
-      //  const boolbv_mapt::mappingt &symbol_map =
-      //    property_decider.get_stack_decision_procedure().get_map().get_mapping();
-      //
-      //  for(const auto &s : symbol_map)
-      //  {
-      //    if(
-      //      has_prefix(id2string(s.first), selector_variable_name.c_str()) &&
-      //      has_suffix(id2string(s.first), "#1"))
-      //    {
-      //      selector_variable = symbol_exprt(s.first, s.second.type);
-      //      std::cout << selector_variable.id_string() << std::endl;
-      //    }
-      //  }
-
-      mp_integer selector_value = pushButtons.at(i);
-      //    // Create assumption literal for selector_variable == selector_value
-      //    literal_exprt assumption =
-      //      property_decider.get_stack_decision_procedure().handle(equal_exprt(
-      //        selector_variable,
-      //        from_integer(selector_value, selector_variable.type())));
-      //    // Add assumption
-      //    property_decider.get_stack_decision_procedure().push(
-      //      exprt::operandst{assumption});
-    }
-    puts("");
-
-    currentThread = currentThread->nextThread;
-  }
-
-  // 3. Stringify the DOM
-  StringBuffer buffer;
-  Writer<StringBuffer> writer(buffer);
-  d.Accept(writer);
-
-  // Output {"project":"rapidjson","stars":11}
-  std::cout << initial_rank << " " << buffer.GetString() << std::endl;
-
-  auto const sat_solver_start = std::chrono::steady_clock::now();
-
-  decision_proceduret::resultt dec_result = property_decider.solve();
-
-  auto const sat_solver_stop = std::chrono::steady_clock::now();
-  std::chrono::duration<double> sat_solver_runtime =
-    std::chrono::duration<double>(sat_solver_stop - sat_solver_start);
-  log.status() << "Runtime Solver: " << sat_solver_runtime.count() << "s"
-               << messaget::eom;
-
-  // We found a counterexample, return it.
-  if(dec_result == decision_proceduret::resultt::D_SATISFIABLE) {
-    MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, UNSAFE_RESULT_STATUS_CODE, interCommunicator);
-    std::cout << "sent" << std::endl;
-
-    std::string counterexampleTrace = "counterexample";
-    std::ofstream out("counterexamples.txt");
-    out << counterexampleTrace;
-    out.close();
-  }
-  else if(dec_result == decision_proceduret::resultt::D_UNSATISFIABLE) {
-    MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, SAFE_RESULT_STATUS_CODE, interCommunicator);
-    std::cout << "sent" << std::endl;
-  }
-  else if(dec_result == decision_proceduret::resultt::D_ERROR) {
-    MPI_Send(&message, 1, MPI_INT, VERISMART_SERVER, UNKNOWN_RESULT_STATUS_CODE, interCommunicator);
-    std::cout << "sent" << std::endl;
-  }
-
-  property_decider.update_properties_status_from_goals(
-    properties, result.updated_properties, dec_result, set_pass);
-
-  auto solver_stop = std::chrono::steady_clock::now();
-  solver_runtime += std::chrono::duration<double>(solver_stop - solver_start);
-  log.status() << "Runtime decision procedure: " << solver_runtime.count()
-               << "s" << messaget::eom;
-
-  // Remove assumption
-  //    property_decider.get_stack_decision_procedure().pop();
-
-  if(dec_result == decision_proceduret::resultt::D_SATISFIABLE)
-  {
-    result.progress =
-      incremental_goto_checkert::resultt::progresst::FOUND_FAIL;
-  }
-}
-
-MPI_Finalize();
-}
-
-void enqueueThread(Node *list, int identifierThread, int numberOfVisiblePoints) {
-
-  Node *newThread = (Node *) malloc(sizeof(Node));
-  newThread->identifierThread = identifierThread;
-  newThread->numberOfVisiblePoints = numberOfVisiblePoints;
-  newThread->nextThread = nullptr;
-  newThread->nextTile = nullptr;
-
-  Node *currentNode = list;
-  while (currentNode->nextThread != nullptr) {
-    currentNode = currentNode->nextThread;
-  }
-  currentNode->nextThread = newThread;
-}
-
-void enqueueTile(Node *list, int identifierThread, int firstVisiblePoint, int lastVisiblePoint) {
-
-  Node *currentThread = list;
-
-  while (currentThread != nullptr) {
-
-    if (identifierThread==currentThread->identifierThread){
-
-      Node *currentTile = currentThread;
-
-      while (currentTile->nextTile!=nullptr){
-        currentTile=currentTile->nextTile;
-      }
-
-      Node *newTile = (Node *) malloc(sizeof(Node));
-      newTile->identifierThread = firstVisiblePoint;
-      newTile->numberOfVisiblePoints = lastVisiblePoint;
-      newTile->nextThread = nullptr;
-      newTile->nextTile = nullptr;
-
-      currentTile->nextTile = newTile;
-      return;
-    }
-
-    currentThread = currentThread->nextThread;
-  }
-}
-
-void printAdjacencyList(Node* list){
-
-  Node* currentThread = list->nextThread;
-  while (currentThread!=nullptr){
-
-    std::cout << currentThread->identifierThread << " " << currentThread->numberOfVisiblePoints << " -> ";
-
-    Node* currentTile = currentThread->nextTile;
-    while (currentTile!=nullptr){
-      std::cout << currentTile->identifierThread << " " << currentTile->numberOfVisiblePoints << " - ";
-      currentTile=currentTile->nextTile;
-    }
-    std::cout << std::endl;
-
-    currentThread=currentThread->nextThread;
-  }
-}
